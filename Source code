@@ -1,0 +1,546 @@
+//Shooting game in toy play station
+#include <iostream>
+#include <windows.h>
+#include <conio.h>
+#include <cstdlib>
+using namespace std;
+
+//array to display the screen
+int *pos[20], score, enemycount = 4;
+//fighter jet id : 10 bullet id : 11, enemy jets ids : 2 to 6 bullet id : 12,
+
+//class to difine the jet
+class jet
+{
+    int x, y, life, id; //basic components of the jet
+    char dir;
+
+public:
+    jet() {}                       //dummy function to declar and array of objects
+    jet(int, int, int, char, int); //to initialize the basic components of the jet
+    void assign();                 //to assign the position array with the jet positions
+    void move(char);               //to move the jet according to the input
+    bool canshoot();               //to controll the jet shooting at the end of the field
+    void gothit();
+    void decidePosition(int, int);
+    int mylife()
+    {
+        return life;
+    }
+    int myid()
+    {
+        return id;
+    }
+    bool dead() //to check whether the jet is dead or functionable
+    {
+        if (life == 0)
+            return true;
+        else
+            return false;
+    }
+
+    //class to define the bullet
+    class bullet
+    {
+    public:
+        int x, y, id; //basic components of the bullet
+        char dir;
+        bullet *next, *prev; //elements to help in double linked list
+        bullet() {}          //dummy constructor to declare array of objects
+        bullet(jet temp)     //constructor to initialize the bullet's basic components
+        {
+            next = prev = NULL; //double linked ist
+            x = temp.x;         //position of the jet
+            y = temp.y;
+            dir = temp.dir;
+            id = (temp.id == 10) ? 11 : 12; //to differentiate enemy's and fighter's bullet
+            switch (dir)                    //decide the initial positon of the bullet
+            {
+            case 'e':
+                x = x - 1;
+                break;
+            case 'd':
+                x = x + 1;
+                break;
+            case 's':
+                y = y - 1;
+                break;
+            case 'f':
+                y = y + 1;
+                break;
+            }
+        }
+        int hit() //function to check whether the bullet hits
+        {
+            if (pos[x][y] != 0)
+            {
+                if ((id == 12 && pos[x][y] == 10) || (id == 11 && pos[x][y] != 10))
+                    return pos[x][y];
+                else
+                    return 0;
+            }
+            else
+                return 0;
+        }
+        int move(jet *temp) //define the movement of the bullet
+        {
+            int kreturn = 0;
+            switch (dir)
+            {
+            case 'e':
+                pos[x][y] = 0;
+                --x;
+                if (x == 0) //remove the bullet if it exceeds the border
+                    temp->deletbullet(x, y);
+                else
+                    kreturn = hit();
+                break;
+            case 'd':
+                pos[x][y] = 0;
+                ++x;
+                if (x == 19)
+                    temp->deletbullet(x, y);
+                else
+                    kreturn = hit();
+                break;
+            case 's':
+                pos[x][y] = 0;
+                --y;
+                if (y == 0)
+                    temp->deletbullet(x, y);
+                else
+                    kreturn = hit();
+                break;
+            case 'f':
+                pos[x][y] = 0;
+                ++y;
+                if (y == 19)
+                    temp->deletbullet(x, y);
+                else
+                    kreturn = hit();
+                break;
+            }
+            pos[x][y] = id; //assign the new position with bullet id
+            return kreturn;
+        }
+    };
+    //objects for the bullets to operate the double linked list
+    bullet *bulletend, *bulletbegin, *newnode, *temp;
+    //to create a bullet
+    void createbullet()
+    {
+        newnode = new bullet(*this);
+        if (bulletbegin == NULL) //when there is no bullet earlier
+            bulletbegin = bulletend = newnode;
+        else
+        {
+            bulletend->next = newnode; //when previously bullets are available
+            newnode->prev = bulletend;
+            bulletend = newnode;
+        }
+    }
+    //to remove the bullet
+    void deletbullet(int x, int y)
+    {
+        temp = bulletbegin;
+        while (temp != NULL) //to access the node where the bullet object is present
+        {
+            if (temp->x == x && temp->y == y)
+                break;
+            temp = temp->next;
+        }
+        //deleting a node
+        if (temp == bulletend && temp == bulletbegin) //when only one bullet is present
+            bulletend = bulletbegin = NULL;
+        else if (temp == bulletbegin) //delet at the begining
+        {
+            bulletbegin = temp->next;
+            bulletbegin->prev = NULL;
+            //free(temp);
+        }
+        else if (temp == bulletend) //delete at the end
+        {
+            bulletend = temp->prev;
+            bulletend->next = NULL;
+            //free(temp);
+        }
+        else //delete elsewhere
+        {
+            temp->prev->next = temp->next;
+            temp->next->prev = temp->prev;
+            //free(temp);
+        }
+    }
+    //to remove the bullets fired by the jet when it is destroyed
+    void destroybullet()
+    {
+        temp = bulletbegin;
+        while (temp != NULL)
+        {
+            pos[temp->x][temp->y] = 0;
+            temp = temp->next;
+        }
+        bulletbegin = bulletend = NULL;
+    }
+    void blast()
+    {
+        int a = id;
+        id = 0;
+        assign();
+        id = a;
+    }
+};
+
+//global declaration of enemy objects
+jet *vehicle;
+
+//constructor to the jet
+jet::jet(int xaxis, int yaxis, int jetlife, char direction, int identify)
+{
+    x = xaxis;
+    y = yaxis;
+    life = jetlife;
+    dir = direction;
+    id = identify;
+    bulletend = bulletbegin = newnode = NULL;
+    assign();
+}
+
+//to assign the array to display the jet
+void jet::assign()
+{
+    //shape of the jet
+    if (dir == 's') //left
+        pos[x - 1][y] = pos[x - 1][y + 1] = pos[x][y] = pos[x][y - 1] = pos[x + 1][y] = pos[x + 1][y + 1] = id;
+    else if (dir == 'd') //down
+        pos[x - 1][y - 1] = pos[x - 1][y + 1] = pos[x][y - 1] = pos[x][y] = pos[x][y + 1] = pos[x + 1][y] = id;
+    else if (dir == 'e') //top
+        pos[x - 1][y] = pos[x][y - 1] = pos[x][y] = pos[x][y + 1] = pos[x + 1][y - 1] = pos[x + 1][y + 1] = id;
+    else if (dir == 'f') //right
+        pos[x - 1][y - 1] = pos[x - 1][y] = pos[x][y] = pos[x][y + 1] = pos[x + 1][y - 1] = pos[x + 1][y] = id;
+}
+//to change the position of the jet
+void jet::decidePosition(int xaxis, int yaxis)
+{
+    life = 2;
+    x = xaxis;
+    y = yaxis;
+    dir = 'e';
+    bulletbegin = bulletend = NULL;
+}
+//to inform the vehicle has got hit and reduce the life
+void jet::gothit()
+{
+    life = life - 1;
+}
+
+bool jet::canshoot()
+{ //returns false if jet is in the border
+    if ((x == 2 && dir == 'e') || (x == 17 && dir == 'd') || (y == 2 && dir == 's') || (y == 17 && dir == 'f'))
+        return false;
+    else
+        return true;
+}
+//to difine the movement of the jet
+void jet::move(char direction)
+{
+    char choice = 'n';
+    switch (direction)
+    {
+    case 'e':
+        if (dir == 'e')
+        {
+            if (x == 2) //stops further movement when it is in the border already
+                dir = 'd';
+            else if ((pos[x - 2][y] != 0) || (pos[x - 2][y - 1] != 0) || (pos[x - 2][y + 1] != 0))
+            {
+                if ((pos[x - 2][y] != 12) || (pos[x - 2][y - 1] != 12) || (pos[x - 2][y + 1] != 12))
+                    dir = 'd';
+            }
+            else
+                --x;
+        }
+        else
+            dir = 'e';
+        break;
+    case 'd':
+        if (dir == 'd')
+        {
+            if (x == 17)
+                dir = 'e';
+            else if ((pos[x + 2][y] != 0) || (pos[x + 2][y - 1] != 0) || (pos[x + 2][y + 1] != 0))
+            {
+                if ((pos[x + 2][y] != 12) || (pos[x + 2][y - 1] != 12) || (pos[x + 2][y + 1] != 12))
+                    dir = 'e';
+            }
+            else
+                ++x;
+        }
+        else
+            dir = 'd';
+        break;
+    case 's':
+        if (dir == 's')
+        {
+            if (y == 2)
+                dir = 'f';
+            else if ((pos[x][y - 2] != 0) || (pos[x + 1][y - 2] != 0) || (pos[x - 1][y - 2] != 0))
+            {
+                if ((pos[x][y - 2] != 12) || (pos[x + 1][y - 2] != 12) || (pos[x - 1][y - 2] != 12))
+                    dir = 'f';
+            }
+            else
+                --y;
+        }
+        else
+            dir = 's';
+        break;
+    case 'f':
+        if (dir == 'f')
+        {
+            if (y == 17)
+                dir = 's';
+            else if ((pos[x][y + 2] != 0) || (pos[x + 1][y + 2] != 0) || (pos[x - 1][y + 2] != 0))
+            {
+                if ((pos[x][y + 2] != 12) || (pos[x + 1][y + 2] != 12) || (pos[x - 1][y + 2] != 12))
+                    dir = 's';
+            }
+            else
+                ++y;
+        }
+        else
+            dir = 'f';
+        break;
+    case 'b':
+        if (canshoot())     //to control the shooting of the jets at the border facing the walls
+            createbullet(); //to create an object for bullet
+        break;
+    case 'q':
+        cout << "\nEnter 'y' again to exit the game or 'n' to continue : ";
+        cin >> choice;
+        if (choice == 'y')
+            exit(0);
+    }
+    for (int i = 0; i < 20; ++i) //process to clear the previous position
+        for (int j = 0; j < 20; ++j)
+            if (pos[i][j] == id)
+                pos[i][j] = 0;
+    assign();
+}
+
+//define the initializeEnemy of the game
+void initializeEnemy()
+{
+    int x[enemycount], y[enemycount];
+    char dir[5];
+    x[0] = y[3] = 2;
+    x[1] = y[2] = 17;
+    x[2] = y[1] = 5;
+    x[3] = y[0] = 10;
+    //declare the enemy objects
+    vehicle = new jet[enemycount];
+    for (int i = 0; i < enemycount; ++i) //set random direction to the enemy jet
+    {
+        switch (rand() % 4)
+        {
+        case 0:
+            dir[i] = 's';
+            break;
+        case 1:
+            dir[i] = 'd';
+            break;
+        case 2:
+            dir[i] = 'f';
+            break;
+        case 3:
+            dir[i] = 'e';
+            break;
+        }
+        vehicle[i] = jet(x[i], y[i], 2, dir[i], i + 2);
+        vehicle[i].assign();
+    }
+}
+
+//function to display the screen
+void display()
+{
+    for (int i = 0; i < 20; ++i)
+    {
+        for (int j = 0; j < 20; ++j)
+        {
+            if (i == 0 || i == 19 || j == 0 || j == 19)
+                cout << "#";
+            else if (pos[i][j] == 11 || pos[i][j] == 12)
+                cout << "o";
+            else if (pos[i][j] == 10)
+            	cout << "x";
+            else if (pos[i][j] != 0)
+                cout << "*";
+            else
+                cout << " ";
+        }
+        cout << endl;
+    }
+}
+//to swap the array if the enemy if dead
+void swapenemy(int place)
+{
+    vehicle[place].blast();
+    jet tempconst = vehicle[place];
+    vehicle[place].destroybullet();
+    if (place == enemycount - 1)
+        vehicle[place] = vehicle[enemycount - 1];
+    else
+        for (int i = place; i < enemycount - 1; ++i)
+            vehicle[i] = vehicle[i + 1];
+    --enemycount;
+    vehicle[enemycount] = tempconst;
+}
+//to add enemy if required
+void addenemy()
+{
+    int xaxis = 16, yaxis = 17;
+    bool condition = false;
+    while (!condition)
+    {
+        --yaxis;
+        if (yaxis == 1)
+        {
+            yaxis = 17;
+            --xaxis;
+        }
+        if (xaxis == 1)
+            break;
+        condition = true;
+        for (int i = xaxis - 2; i < xaxis + 3; ++i)
+            for (int j = yaxis - 2; j < yaxis + 3; ++j)
+            {
+                if (pos[i][j] == 12)
+                    continue;
+                else if (pos[i][j] != 0)
+                    condition = false;
+            }
+    }
+    if (enemycount < 4 && condition == true)
+    {
+        vehicle[enemycount++].decidePosition(xaxis, yaxis);
+    }
+}
+//function to fun the loop of the program
+void run(jet *fighter)
+{
+    //initialization to access the linked list of the bullet objects
+    jet::bullet *temp = fighter->bulletbegin; //for fighter jet
+    //to get input if keyboard is pressed
+    if (_kbhit())
+    {
+        fighter->move(getch());
+        fflush(stdin);
+    }
+
+    jet::bullet *t[enemycount];
+    for (int i = 0; i < 4; ++i) //for enemy jet
+    {
+        t[i] = vehicle[i].bulletbegin;
+        while (t[i] != NULL) //move the enemy bullets
+        {
+            int destroy = t[i]->move(&vehicle[i]);
+            //to reduce the life of the fighter
+            if (destroy == 10)
+            {
+                vehicle[i].deletbullet(t[i]->x, t[i]->y);
+                fighter->gothit();
+            }
+            t[i] = t[i]->next;
+        }
+    }
+    while (temp != NULL) //moves the fighter jet bullets
+    {
+        int destroy = temp->move(fighter);
+        if (destroy > 1 && destroy < 7) //to reduce the life of the enemy jets if got hit
+        {
+            fighter->deletbullet(temp->x, temp->y);
+            int j = 0;
+            for (; destroy != vehicle[j].myid() && j < enemycount; ++j)
+            {
+            }
+            vehicle[j].gothit();
+            ++score;
+        }
+        temp = temp->next;
+    }
+
+    //to display even when the bullet is attacked
+    fighter->assign();
+
+    //random inputs of enemy jets
+    for (int i = 0; i < enemycount; ++i)
+    {
+        if (vehicle[i].dead())
+        {
+            swapenemy(i);
+        }
+        else
+        {
+            switch (rand() % 5)
+            {
+            case 0:
+                vehicle[i].move('e');
+                break;
+            case 1:
+                vehicle[i].move('d');
+                break;
+            case 2:
+                vehicle[i].move('f');
+                break;
+            case 3:
+                vehicle[i].move('s');
+                break;
+            case 4:
+                vehicle[i].move('b');
+            }
+        }
+        vehicle[i].assign();
+    }
+    if (enemycount < 4)
+        addenemy();
+}
+
+//main function
+int main()
+{
+    system("cls");
+    //initial instructions
+    cout << "\nCONTROLS :\n"
+         << " 'e' to move up\n"
+         << " 'd' to move down\n"
+         << " 's' to move left\n"
+         << " 'f' to move right\n"
+         << " 'b' to shoot\n";
+    getch();
+    system("cls");
+    score = 0;
+    for (int i = 0; i < 20; ++i) //to allocate memory to the position array
+    {
+        pos[i] = new int[20];
+        for (int j = 0; j < 20; ++j) //initialize 0 to all position
+            pos[i][j] = 0;
+    }
+    jet fighter(10, 10, 5, 'e', 10); //declare object for the fighter jet
+    initializeEnemy();               //declare objects for the enemy jets
+    while (!fighter.dead())          //main running loop
+    {
+        run(&fighter);
+        system("cls");
+        display();
+        cout << endl
+             << "SCORE : "
+             << score
+             << "\tLIFE : "
+             << fighter.mylife()
+             << endl;
+        Sleep(150);
+    }
+    cout << "game over";
+    return 0;
+}
