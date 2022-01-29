@@ -526,7 +526,7 @@ int main()
         for (int j = 0; j < 20; ++j) //initialize 0 to all position
             pos[i][j] = 0;
     }
-    jet fighter(10, 10, 5, 'e', 10); //declare object for the fighter jet
+    jet fighter(10, 10, 8, 'e', 10); //declare object for the fighter jet
     initializeEnemy();               //declare objects for the enemy jets
     while (!fighter.dead())          //main running loop
     {
@@ -539,7 +539,7 @@ int main()
              << "\tLIFE : "
              << fighter.mylife()
              << endl;
-        Sleep(150);
+        Sleep(200);
     }
     cout << "game over";
     return 0;
